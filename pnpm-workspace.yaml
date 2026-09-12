@@ -1,0 +1,13 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+  - 'tooling/*'
+
+# Postinstall scripts are opt-in. esbuild (via tsup/vitest/tailwind) needs one,
+# and argon2 fetches its prebuilt native binding.
+allowBuilds:
+  argon2: true
+  esbuild: true
+
+minimumReleaseAgeExclude:
+  - eslint@10.10.0

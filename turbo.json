@@ -1,0 +1,75 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "globalDependencies": [
+    ".env",
+    ".env.example",
+    "eslint.config.mjs",
+    "prettier.config.mjs",
+    "tooling/tsconfig/*.json"
+  ],
+  "globalEnv": ["NODE_ENV"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "env": [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "JWT_SECRET",
+        "JWT_REFRESH_SECRET",
+        "SMS_PROVIDER",
+        "SMS_API_KEY",
+        "SMS_SENDER_ID",
+        "WEB_ORIGIN",
+        "PORT",
+        "NEXT_PUBLIC_SERVER_URL",
+        "AUTH_STORE",
+        "SHOWDOWN_BEAT_MS",
+        "DEAL_DELAY_MS",
+        "TABLE_RNG_SEED",
+        "NEXT_PUBLIC_FIXTURE"
+      ],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+    },
+    "dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "lint": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "clean": {
+      "cache": false
+    },
+    "test:e2e": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "env": [
+        "DATABASE_URL",
+        "REDIS_URL",
+        "JWT_SECRET",
+        "JWT_REFRESH_SECRET",
+        "SMS_PROVIDER",
+        "SMS_API_KEY",
+        "SMS_SENDER_ID",
+        "WEB_ORIGIN",
+        "PORT",
+        "NEXT_PUBLIC_SERVER_URL",
+        "AUTH_STORE",
+        "SHOWDOWN_BEAT_MS",
+        "DEAL_DELAY_MS",
+        "TABLE_RNG_SEED",
+        "NEXT_PUBLIC_FIXTURE"
+      ]
+    }
+  }
+}

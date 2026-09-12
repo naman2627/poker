@@ -1,0 +1,116 @@
+@import 'tailwindcss';
+
+/**
+ * Design tokens.
+ *
+ * The felt ramp is a desaturated green so the cards and chips on top of it stay
+ * the brightest things on screen. `card-red` is a deep, slightly orange red —
+ * pure #FF0000 vibrates against green and is illegible at card-corner sizes.
+ */
+@theme {
+  --color-felt-950: oklch(0.18 0.035 158);
+  --color-felt-900: oklch(0.24 0.05 155);
+  --color-felt-800: oklch(0.31 0.06 155);
+  --color-felt-700: oklch(0.38 0.07 155);
+  --color-felt-600: oklch(0.46 0.075 155);
+  --color-rail-900: oklch(0.22 0.03 60);
+  --color-rail-700: oklch(0.33 0.045 62);
+
+  --color-card-face: oklch(0.97 0.008 95);
+  --color-card-ink: oklch(0.22 0.01 260);
+  --color-card-red: oklch(0.505 0.19 26);
+  --color-card-back: oklch(0.42 0.11 262);
+
+  --color-chip-5: oklch(0.72 0.14 250);
+  --color-chip-25: oklch(0.62 0.17 145);
+  --color-chip-100: oklch(0.35 0.02 260);
+  --color-chip-500: oklch(0.62 0.2 20);
+  --color-chip-1000: oklch(0.78 0.16 85);
+
+  --color-accent: oklch(0.78 0.16 155);
+  /* Card red is tuned for a card face; error text needs to carry on dark felt. */
+  --color-danger: oklch(0.74 0.17 25);
+
+  /* One place to change how long a card takes to land. */
+  --ease-deal: cubic-bezier(0.2, 0.9, 0.25, 1);
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  /* iOS: keep the fixed action sheet above the home indicator. */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/**
+ * One focus treatment for the whole app. Every interactive element is a real
+ * button or input, so this is all it takes to keep keyboard use visible.
+ */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/* Cards land rather than appear; the stagger is applied per index. */
+@keyframes deal-in {
+  from {
+    opacity: 0;
+    transform: translateY(-18px) rotate(-8deg) scale(0.88);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0) scale(1);
+  }
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pulse-ring {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.animate-deal-in {
+  animation: deal-in 380ms var(--ease-deal) both;
+}
+
+.animate-chip-in {
+  animation: chip-in 220ms var(--ease-deal) both;
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-deal-in,
+  .animate-chip-in,
+  .animate-pulse-ring {
+    animation: none;
+  }
+}
