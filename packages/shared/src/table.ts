@@ -187,6 +187,31 @@ export const PublicTableStateSchema = z.object({
 });
 export type PublicTableState = z.infer<typeof PublicTableStateSchema>;
 
+/**
+ * The six things you can say without typing.
+ *
+ * Ids rather than emoji on the wire, for the same reason cards are ranks and
+ * suits rather than glyphs: the server is storing and rate-limiting a choice
+ * from a fixed set, and how that choice is drawn is the client's business. It
+ * also means a reaction can be re-drawn, or read aloud, without a migration.
+ *
+ * Six is the whole set. A reaction picker that scrolls is a chat box with extra
+ * steps, and the point of these is that they cost you nothing to send while a
+ * hand is live.
+ */
+export const EMOTES = ['clap', 'laugh', 'shock', 'think', 'salute', 'salt'] as const;
+
+/**
+ * How long a player waits between reactions.
+ *
+ * Shared so a client can grey the buttons out for the right length of time —
+ * but the rule itself is the server's, measured against the table's own clock.
+ * A client that ignores this is refused, not obeyed (CLAUDE.md §4).
+ */
+export const EMOTE_COOLDOWN_MS = 3_000;
+export const EmoteSchema = z.enum(EMOTES);
+export type Emote = z.infer<typeof EmoteSchema>;
+
 /* ------------------------------------------------------------------ *
  * Client -> server                                                    *
  * ------------------------------------------------------------------ */
@@ -241,6 +266,13 @@ export type PlayerActionPayload = z.infer<typeof PlayerActionSchema>;
 
 export const ChatSendSchema = z.object({ text: z.string().trim().min(1).max(280) });
 export type ChatSendPayload = z.infer<typeof ChatSendSchema>;
+
+/**
+ * A reaction. The cooldown is the server's to enforce, not this schema's — a
+ * client that asks twice in a row is refused, not trusted (CLAUDE.md §4).
+ */
+export const PlayerEmoteSchema = z.object({ emote: EmoteSchema });
+export type PlayerEmotePayload = z.infer<typeof PlayerEmoteSchema>;
 
 export const StateResyncSchema = z.object({ fromVersion: z.number().int().nonnegative() });
 export type StateResyncPayload = z.infer<typeof StateResyncSchema>;
@@ -322,6 +354,21 @@ export interface ChatMessagePayload {
   readonly at: number;
 }
 
+/**
+ * Somebody reacted.
+ *
+ * Carries the seat so a client can float it over the right chair without
+ * looking anybody up, and the user id so a viewer who has muted that person can
+ * drop it. Muting is the reader's business and happens on their machine — the
+ * server has no opinion about who you want to hear from.
+ */
+export interface EmotePayload {
+  readonly userId: string;
+  readonly seatIndex: number;
+  readonly emote: Emote;
+  readonly at: number;
+}
+
 export interface SessionReplacedPayload {
   readonly message: string;
 }
@@ -338,6 +385,8 @@ export const SERVER_EVENTS = {
   sessionReplaced: 'session:replaced',
   /** The seed behind the hand that has just finished. */
   deckRevealed: 'deck:revealed',
+  /** Somebody at the table reacted. */
+  tableEmote: 'table:emote',
 } as const;
 
 /** Every client -> server event name, in one place. */
@@ -353,5 +402,6 @@ export const CLIENT_EVENTS = {
   playerRebuy: 'player:rebuy',
   playerShow: 'player:show',
   chatSend: 'chat:send',
+  playerEmote: 'player:emote',
   stateResync: 'state:resync',
 } as const;

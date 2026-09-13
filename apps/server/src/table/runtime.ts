@@ -14,7 +14,12 @@ import {
   type Rng,
   type TableState,
 } from '@poker/engine';
-import type { PlayerActionPayload, TableConfig } from '@poker/shared';
+import {
+  EMOTE_COOLDOWN_MS,
+  type Emote,
+  type PlayerActionPayload,
+  type TableConfig,
+} from '@poker/shared';
 import type { HistoryRecorder } from '../history/recorder';
 import type { StatsRecorder } from '../stats/recorder';
 import { cardCodes, type CardCode, type HandEnded, type Street } from '../history/records';
@@ -24,6 +29,7 @@ import {
   sendActionPrompt,
   sendChatMessage,
   sendDeckRevealed,
+  sendEmote,
   sendHandDealt,
   sendHandResult,
   sendSessionReplaced,
@@ -83,6 +89,14 @@ export const DEFAULT_TIMINGS: TableTimings = {
   showdownBeatMs: 2_000,
   dealDelayMs: 2_500,
 };
+
+/**
+ * The cooldown lives in @poker/shared so the client can grey its buttons out
+ * for the right length of time — but it is enforced *here*, against this
+ * table's clock. A cooldown a client owns is a cooldown that does not exist
+ * (CLAUDE.md §4).
+ */
+export { EMOTE_COOLDOWN_MS };
 
 export interface TableRuntimeOptions {
   readonly code: string;
@@ -177,6 +191,8 @@ export class TableRuntime {
    * sitting". `redact.ts` turns this into rows; see `liveLeaderboard`.
    */
   readonly #sessions = new Map<string, Sitting>();
+  /** When each player last reacted, for the cooldown above. */
+  readonly #lastEmoteAt = new Map<string, number>();
 
   /**
    * This hand's shuffle, and the promise made about it.
@@ -371,7 +387,10 @@ export class TableRuntime {
       // A player leaving mid-hand keeps their seat until the hand is paid out,
       // so their row stays on the live board until it really is gone. `#prune`
       // at the end of a hand clears up whatever is left.
-      if (seatIndexOf(this.#state, userId) === null) this.#sessions.delete(userId);
+      if (seatIndexOf(this.#state, userId) === null) {
+        this.#sessions.delete(userId);
+        this.#lastEmoteAt.delete(userId);
+      }
 
       this.#history?.record({
         kind: 'session-ended',
@@ -488,6 +507,39 @@ export class TableRuntime {
       at: this.#scheduler.now(),
     };
     for (const connection of this.#connections.values()) sendChatMessage(connection, payload);
+  }
+
+  /**
+   * A reaction, from somebody sitting at the table.
+   *
+   * Two refusals, and both are the server's to make:
+   *
+   *   you have to be in a seat. A reaction floats over a chair, so somebody
+   *   watching from the rail has no chair to float it over — and a table where
+   *   spectators can react is a table anyone can interrupt.
+   *
+   *   you have to have waited. The cooldown is measured here against this
+   *   table's clock; a client that asks early is told no rather than trusted.
+   *
+   * It changes no table state, so it does not go through `#publish`: nothing
+   * about the hand has moved, and bumping the version for a reaction would make
+   * every client re-check its state because somebody laughed.
+   */
+  emote(userId: string, emote: Emote): Promise<void> {
+    return this.#enqueue(() => {
+      const seatIndex = this.#requireSeat(userId);
+
+      const now = this.#scheduler.now();
+      const last = this.#lastEmoteAt.get(userId);
+      if (last !== undefined && now - last < EMOTE_COOLDOWN_MS) {
+        const waitSec = Math.ceil((EMOTE_COOLDOWN_MS - (now - last)) / 1000);
+        throw TableError.rateLimited(`give it ${String(waitSec)}s`);
+      }
+      this.#lastEmoteAt.set(userId, now);
+
+      const payload = { userId, seatIndex, emote, at: now };
+      for (const connection of this.#connections.values()) sendEmote(connection, payload);
+    });
   }
 
   /* ---------------------------------------------------------------- *

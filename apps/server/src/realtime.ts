@@ -4,6 +4,7 @@ import {
   CLIENT_EVENTS,
   ChatSendSchema,
   PlayerActionSchema,
+  PlayerEmoteSchema,
   PlayerRebuySchema,
   PlayerShowSchema,
   PlayerSitOutSchema,
@@ -170,6 +171,12 @@ export function attachRealtime(app: FastifyInstance, deps: RealtimeDeps): Socket
       const { text } = ChatSendSchema.parse(raw);
       currentTable().chat(session.user.id, text);
       return { sent: true };
+    });
+
+    on(socket, connection, CLIENT_EVENTS.playerEmote, async (raw) => {
+      const { emote } = PlayerEmoteSchema.parse(raw);
+      await currentTable().emote(session.user.id, emote);
+      return { emote };
     });
 
     on(socket, connection, CLIENT_EVENTS.stateResync, async (raw) => {

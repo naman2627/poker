@@ -26,6 +26,15 @@ export interface Prefs {
   readonly volume: number;
   /** One-tap things to say. Empty means the player cleared them. */
   readonly quickPhrases: readonly string[];
+  /**
+   * People this viewer would rather not hear from.
+   *
+   * One list for chat and reactions together, because muting somebody who is
+   * being tiresome in one and not the other is not a thing anybody wants. It
+   * lives on the device and is never sent anywhere: the server has no opinion
+   * about who you want to hear from, and the person muted is never told.
+   */
+  readonly mutedUserIds: readonly string[];
 }
 
 /**
@@ -60,6 +69,7 @@ export const DEFAULT_PREFS: Prefs = {
   turnChime: false,
   volume: 0.7,
   quickPhrases: DEFAULT_PHRASES,
+  mutedUserIds: [],
 };
 
 /** Volume is a fraction. Anything else is somebody's bad JSON. */
@@ -113,5 +123,13 @@ export function parsePrefs(raw: unknown): Prefs {
     quickPhrases: Array.isArray(value.quickPhrases)
       ? normalisePhrases(value.quickPhrases.filter((p): p is string => typeof p === 'string'))
       : DEFAULT_PHRASES,
+    mutedUserIds: Array.isArray(value.mutedUserIds)
+      ? [...new Set(value.mutedUserIds.filter((id): id is string => typeof id === 'string'))]
+      : [],
   };
+}
+
+/** Adding and removing without caring whether it was already there. */
+export function toggleMuted(muted: readonly string[], userId: string): string[] {
+  return muted.includes(userId) ? muted.filter((id) => id !== userId) : [...muted, userId];
 }

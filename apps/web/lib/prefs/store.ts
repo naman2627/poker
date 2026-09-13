@@ -7,6 +7,7 @@ import {
   clampVolume,
   normalisePhrases,
   parsePrefs,
+  toggleMuted,
   type DeckStyle,
   type Prefs,
 } from './prefs';
@@ -31,6 +32,7 @@ interface PrefsStore extends Prefs {
   setTurnChime(enabled: boolean): void;
   setVolume(volume: number): void;
   setQuickPhrases(input: string | readonly string[]): void;
+  toggleMute(userId: string): void;
 }
 
 const KEY = 'poker.prefs';
@@ -75,6 +77,10 @@ export const usePrefs = create<PrefsStore>((set, get) => {
     setQuickPhrases(input) {
       commit({ quickPhrases: normalisePhrases(input) });
     },
+
+    toggleMute(userId) {
+      commit({ mutedUserIds: toggleMuted(get().mutedUserIds, userId) });
+    },
   };
 });
 
@@ -85,6 +91,7 @@ function current(store: Prefs): Prefs {
     turnChime: store.turnChime,
     volume: store.volume,
     quickPhrases: store.quickPhrases,
+    mutedUserIds: store.mutedUserIds,
   };
 }
 

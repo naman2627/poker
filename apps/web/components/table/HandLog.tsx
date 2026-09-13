@@ -19,16 +19,25 @@ export function HandLog({
   log,
   chat,
   canChat,
+  muted,
+  onToggleMute,
   onSend,
 }: {
   log: readonly Announcement[];
   chat: readonly ChatMessagePayload[];
   /** False while the link is down — a message sent into a dead socket is lost. */
   canChat: boolean;
+  /** Whoever this viewer has muted. Applies to chat and reactions alike. */
+  muted: readonly string[];
+  onToggleMute(userId: string): void;
   onSend(text: string): void;
 }) {
   const scroller = useRef<HTMLOListElement>(null);
   const latest = log[log.length - 1];
+
+  // Muting hides what somebody says from this reader only. It is never sent
+  // anywhere and the person muted is never told — see `lib/prefs/prefs.ts`.
+  const visible = chat.filter((message) => !muted.includes(message.userId));
 
   useEffect(() => {
     const element = scroller.current;
@@ -65,14 +74,43 @@ export function HandLog({
         {latest?.assertive === true ? latest.text : ''}
       </p>
 
-      {chat.length > 0 ? (
+      {visible.length > 0 || muted.length > 0 ? (
         <ul className="max-h-28 space-y-1 overflow-y-auto border-t border-white/10 px-4 py-2.5 text-sm">
-          {chat.map((message) => (
-            <li key={`${message.userId}-${String(message.at)}`}>
-              <span className="text-accent font-medium">{message.displayName}</span>{' '}
-              <span className="text-neutral-300">{message.text}</span>
+          {visible.map((message) => (
+            <li
+              key={`${message.userId}-${String(message.at)}`}
+              className="group flex items-baseline gap-1.5"
+            >
+              <span className="text-accent shrink-0 font-medium">{message.displayName}</span>
+              <span className="min-w-0 flex-1 text-neutral-300">{message.text}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  onToggleMute(message.userId);
+                }}
+                aria-label={`Mute ${message.displayName}`}
+                title={`Mute ${message.displayName} — chat and reactions`}
+                className="shrink-0 text-[0.65rem] text-neutral-600 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:text-neutral-300"
+              >
+                mute
+              </button>
             </li>
           ))}
+
+          {muted.length > 0 ? (
+            <li className="pt-1 text-[0.7rem] text-neutral-600">
+              {muted.length} muted.{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  for (const userId of muted) onToggleMute(userId);
+                }}
+                className="underline underline-offset-2 hover:text-neutral-300"
+              >
+                Unmute everyone
+              </button>
+            </li>
+          ) : null}
         </ul>
       ) : null}
 

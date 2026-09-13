@@ -3,6 +3,7 @@ import {
   SERVER_EVENTS,
   type ActionPromptPayload,
   type ChatMessagePayload,
+  type EmotePayload,
   type HandDealtPayload,
   type HandResultPayload,
   type LiveLeaderboardRow,
@@ -105,6 +106,17 @@ export function sendTableError(connection: Connection, payload: TableErrorPayloa
 
 export function sendChatMessage(connection: Connection, payload: ChatMessagePayload): void {
   connection.emit(SERVER_EVENTS.chatMessage, payload);
+}
+
+/**
+ * A reaction, to everybody.
+ *
+ * It carries no table state — a seat index and a choice from a fixed set — so
+ * it needs no redaction. Whether a particular reader wants to see it is their
+ * decision and is made on their machine.
+ */
+export function sendEmote(connection: Connection, payload: EmotePayload): void {
+  connection.emit(SERVER_EVENTS.tableEmote, payload);
 }
 
 /**

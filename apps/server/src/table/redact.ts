@@ -70,6 +70,28 @@ export function redactFor(
 ): PublicTableState {
   const revealed = context.revealedSeats ?? EMPTY;
 
+  /**
+   * SPECTATORS.
+   *
+   * Somebody watching a table is not sitting at it, so there is no seat whose
+   * cards are "theirs" — and this is where that becomes structural rather than
+   * incidental. A viewer with no seat is reduced to `null` here, once, before
+   * anything downstream asks whether a seat belongs to them.
+   *
+   * It would already behave correctly without this line: `isViewer` compares
+   * against `seat.playerId`, and a spectator matches no seat. But "no card is
+   * the viewer's because no seat is theirs" is an accident of a comparison,
+   * while "the viewer is nobody" is a property of the input. The second one
+   * survives somebody adding a different reason to show a card.
+   *
+   * There is no second serialisation path for a spectator, and there must never
+   * be one: a watcher sees exactly what `redactFor` returns for a null viewer,
+   * which is the public table — the board, the pots, and only the hands the
+   * showdown actually turned over. A seat that mucked stays mucked for them too.
+   */
+  const seated = seatIndexOf(state, viewerUserId) !== null;
+  const viewer = seated ? viewerUserId : null;
+
   return {
     tableCode: context.tableCode ?? '',
     handId: state.handId,
@@ -82,7 +104,7 @@ export function redactFor(
     bigBlind: state.bigBlind,
     board: state.board.map(copyCard),
     seats: state.seats.map((seat) =>
-      seat === null ? null : toPublicSeat(seat, viewerUserId, revealed, state, context),
+      seat === null ? null : toPublicSeat(seat, viewer, revealed, state, context),
     ),
     currentBet: state.currentBet,
     minRaise: state.minRaise,
@@ -92,7 +114,7 @@ export function redactFor(
     // The count, never the cards.
     deckRemaining: state.deck.length,
     actionDeadlineTs: context.actionDeadlineTs ?? null,
-    viewerSeatIndex: seatIndexOf(state, viewerUserId),
+    viewerSeatIndex: seatIndexOf(state, viewer),
     hostUserId: context.hostUserId ?? null,
     paused: context.paused ?? false,
     deckCommit: context.deckCommit ?? null,

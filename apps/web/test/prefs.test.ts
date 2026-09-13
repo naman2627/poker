@@ -106,6 +106,7 @@ describe('parsePrefs', () => {
       turnChime: true,
       volume: 0.25,
       quickPhrases: ['Nice hand'],
+      mutedUserIds: ['ada'],
     };
 
     expect(parsePrefs(stored)).toEqual({
@@ -114,6 +115,7 @@ describe('parsePrefs', () => {
       turnChime: true,
       volume: 0.25,
       quickPhrases: ['Nice hand'],
+      mutedUserIds: ['ada'],
     });
   });
 

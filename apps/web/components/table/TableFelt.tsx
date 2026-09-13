@@ -1,7 +1,14 @@
-import type { ActionPromptPayload, Card, HandResultPayload, PublicTableState } from '@poker/shared';
+import type {
+  ActionPromptPayload,
+  Card,
+  Emote,
+  HandResultPayload,
+  PublicTableState,
+} from '@poker/shared';
 import { CommunityCards } from './CommunityCards';
 import { SeatView } from './SeatView';
 import { chipOffset, seatPositions } from '../../lib/seats';
+import { EMOTE_LIFETIME_MS, emoteLook } from '../../lib/emotes';
 import { chipsOnFelt, potTotal } from '../../lib/store/patch';
 import { ChipStack } from './ChipStack';
 import { cx } from '../../lib/cx';
@@ -21,6 +28,12 @@ export interface TableFeltProps {
   readonly viewerCards: readonly Card[] | null;
   readonly awarded: number;
   readonly timeoutSec: number;
+  /**
+   * Reactions still on screen, already filtered for whoever the viewer has
+   * muted. The felt draws them; deciding which are still alive belongs to the
+   * component that owns the clock — see `useLiveEmotes`.
+   */
+  readonly emotes: readonly { key: string; seatIndex: number; emote: Emote }[];
 }
 
 export function TableFelt({
@@ -30,6 +43,7 @@ export function TableFelt({
   viewerCards,
   awarded,
   timeoutSec,
+  emotes,
 }: TableFeltProps) {
   const positions = seatPositions(state.seats.length, state.viewerSeatIndex);
   const winners = new Set(result?.awards.map((award) => award.seatIndex) ?? []);
@@ -110,6 +124,24 @@ export function TableFelt({
                 <ChipStack amount={seat.committedThisRound} />
               </div>
             ) : null}
+
+            {emotes
+              .filter((floating) => floating.seatIndex === position.seatIndex)
+              .map((floating) => (
+                <div
+                  key={floating.key}
+                  aria-hidden
+                  style={{
+                    left: `${String(position.xPercent)}%`,
+                    // Above the seat, clear of the name plate.
+                    top: `${String(position.yPercent - 9)}%`,
+                    animationDuration: `${String(EMOTE_LIFETIME_MS)}ms`,
+                  }}
+                  className="animate-emote pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-1/2 text-3xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.7)]"
+                >
+                  {emoteLook(floating.emote).glyph}
+                </div>
+              ))}
           </div>
         );
       })}

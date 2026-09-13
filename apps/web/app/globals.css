@@ -95,6 +95,32 @@ body {
   }
 }
 
+/*
+ * A reaction rising off a seat.
+ *
+ * It drifts up and fades rather than simply disappearing, so three people
+ * reacting at once read as three separate things instead of one flicker. The
+ * duration is set per element from EMOTE_LIFETIME_MS, so the animation and the
+ * moment the component drops it can never disagree.
+ */
+@keyframes emote-rise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, -70%) scale(1.12);
+  }
+  30% {
+    transform: translate(-50%, -78%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -145%) scale(0.92);
+  }
+}
+
 @keyframes pulse-ring {
   0%,
   100% {
@@ -117,10 +143,24 @@ body {
   animation: pulse-ring 1.6s ease-in-out infinite;
 }
 
+.animate-emote {
+  animation: emote-rise 2600ms var(--ease-deal) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-deal-in,
   .animate-chip-in,
   .animate-pulse-ring {
     animation: none;
+  }
+
+  /*
+   * A reaction still has to leave, or it would stack up over a seat for ever —
+   * so it holds still and fades rather than not animating at all.
+   */
+  .animate-emote {
+    animation: none;
+    opacity: 1;
+    transform: translate(-50%, -70%);
   }
 }

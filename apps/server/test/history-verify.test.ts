@@ -48,6 +48,23 @@ interface Played {
   commitDuringHand: string | null;
 }
 
+/**
+ * Deal hands until one satisfies `wanted`, and hand that one back.
+ *
+ * For the tests that need a particular *shape* of hand — one where somebody
+ * mucked, say — rather than a particular deck. Keeps the real random seed the
+ * rest of this file is about, without the assertion depending on luck.
+ */
+async function playUntil(wanted: (hand: StoredHand) => boolean): Promise<Played> {
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const played = await playOneHand();
+    if (wanted(played.hand)) return played;
+  }
+
+  // Forty hands without one is not luck; it is a broken assumption.
+  throw new Error('no hand matched after 40 deals');
+}
+
 /** Seat three players, play one hand out, and hand back what was recorded. */
 async function playOneHand(): Promise<Played> {
   const scheduler = manualScheduler();
@@ -228,9 +245,22 @@ describe('verifying a hand', () => {
   });
 
   it('checks a seat that mucked without showing anybody its cards', async () => {
-    const played = await playOneHand();
     // Somebody who was not in the hand at all.
     const stranger = '99999999-9999-4999-8999-999999999999';
+
+    /*
+     * This hand has to contain a muck, and the deck here is genuinely random —
+     * `playOneHand` draws real 32-byte seeds, which is the point of the other
+     * tests in this file. So deal until one does.
+     *
+     * Whether anybody mucks depends on the cards: when each hand in the showdown
+     * order happens to beat everything shown before it, every seat has something
+     * to prove and all of them show. That is a perfectly legal hand and it used
+     * to fail this test about two runs in five.
+     */
+    const played = await playUntil((hand) =>
+      verifyHand(hand, stranger).seats.some((seat) => seat.recorded === null),
+    );
     const result = verifyHand(played.hand, stranger);
 
     expect(result.verified).toBe(true);

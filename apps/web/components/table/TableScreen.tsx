@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { CLIENT_EVENTS } from '@poker/shared';
+import { CLIENT_EVENTS, EMOTE_COOLDOWN_MS } from '@poker/shared';
 import { useSession } from '../../lib/auth/session';
 import { useTableConnection } from '../../lib/net/use-table-connection';
 import { useFixtureControls } from '../../lib/use-fixture';
@@ -10,6 +10,8 @@ import { potTotal } from '../../lib/store/patch';
 import { isLive, useTableStore } from '../../lib/store/table-store';
 import { useTableSounds } from '../../lib/sound/use-table-sounds';
 import { useTurnTitleFlash } from '../../lib/turn-title';
+import { useLiveEmotes } from '../../lib/use-live-emotes';
+import { usePrefs } from '../../lib/prefs/store';
 import { ActionBar } from './ActionBar';
 import { ConnectionBadge } from './ConnectionBadge';
 import { FixtureBar } from './FixtureBar';
@@ -17,6 +19,7 @@ import { HandLog } from './HandLog';
 import { HandResultPanel } from './HandResultPanel';
 import { LiveLeaderboard } from './LiveLeaderboard';
 import { SoundToggle } from './SoundToggle';
+import { EmoteBar } from './EmoteBar';
 import { SeatPicker } from './SeatPicker';
 import { TableControls } from './TableControls';
 import { TableFelt } from './TableFelt';
@@ -64,6 +67,11 @@ export function TableScreen({ code }: { code: string }) {
   // Both are no-ops until the player turns them on; see lib/sound/prefs.ts.
   useTableSounds({ patch: store.patch, prompt: store.prompt, viewerSeatIndex: viewerSeat });
   useTurnTitleFlash(myTurn);
+
+  // Reactions still on the felt, with anybody the viewer has muted dropped.
+  const liveEmotes = useLiveEmotes(store.emotes);
+  const muted = usePrefs((prefs) => prefs.mutedUserIds);
+  const toggleMute = usePrefs((prefs) => prefs.toggleMute);
 
   const send = (event: string, payload?: unknown): void => {
     void store.send(event, payload);
@@ -148,6 +156,7 @@ export function TableScreen({ code }: { code: string }) {
                 viewerCards={store.holeCards}
                 awarded={store.awarded}
                 timeoutSec={config?.actionTimeoutSec ?? 30}
+                emotes={liveEmotes}
               />
             )}
 
@@ -162,15 +171,28 @@ export function TableScreen({ code }: { code: string }) {
               />
             ) : null}
 
-            {state && seat === null ? (
-              <SeatPicker
-                state={state}
-                config={config}
+            {state && seat ? (
+              <EmoteBar
                 disabled={!live}
-                onSit={(seatIndex, buyIn) => {
-                  send(CLIENT_EVENTS.tableSit, { seatIndex, buyIn });
+                cooldownMs={EMOTE_COOLDOWN_MS}
+                onEmote={(emote) => {
+                  send(CLIENT_EVENTS.playerEmote, { emote });
                 }}
               />
+            ) : null}
+
+            {state && seat === null ? (
+              <>
+                <WatchingBanner seats={state.seats.filter((s) => s !== null).length} />
+                <SeatPicker
+                  state={state}
+                  config={config}
+                  disabled={!live}
+                  onSit={(seatIndex, buyIn) => {
+                    send(CLIENT_EVENTS.tableSit, { seatIndex, buyIn });
+                  }}
+                />
+              </>
             ) : null}
 
             {state && seat ? (
@@ -213,6 +235,8 @@ export function TableScreen({ code }: { code: string }) {
               log={store.log}
               chat={store.chat}
               canChat={live}
+              muted={muted}
+              onToggleMute={toggleMute}
               onSend={(text) => {
                 send(CLIENT_EVENTS.chatSend, { text });
               }}
@@ -221,6 +245,32 @@ export function TableScreen({ code }: { code: string }) {
         </div>
       </div>
     </Shell>
+  );
+}
+
+/**
+ * The rail.
+ *
+ * Somebody who has joined a table and not sat down is watching, and should be
+ * told so rather than left looking at a seat picker and wondering whether they
+ * are in the hand. They see exactly the public table — the board, and the hands
+ * a showdown turned over — because the server hands them a null viewer and
+ * there is no second path (see `redactFor`).
+ */
+function WatchingBanner({ seats }: { seats: number }) {
+  return (
+    <p
+      role="status"
+      className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-white/10 bg-black/25 px-4 py-2.5 text-sm text-neutral-400"
+    >
+      <span aria-hidden>👀</span>
+      <span className="font-medium text-neutral-200">You are watching.</span>
+      <span>
+        No cards are dealt to you, and you will not see anybody&rsquo;s hand unless it is shown at a
+        showdown. Take a seat below to play — {seats} {seats === 1 ? 'player is' : 'players are'} at
+        the table.
+      </span>
+    </p>
   );
 }
 

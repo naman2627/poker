@@ -8,6 +8,7 @@ import {
   type ApiError,
   type Card,
   type ChatMessagePayload,
+  type EmotePayload,
   type HandDealtPayload,
   type HandResultPayload,
   type PlayerActionPayload,
@@ -49,6 +50,14 @@ export interface TableStoreState {
   readonly prompt: ActionPromptPayload | null;
   readonly result: HandResultPayload | null;
   readonly chat: readonly ChatMessagePayload[];
+  /**
+   * Reactions that have arrived, newest last.
+   *
+   * Kept as a rolling tail rather than cleared on a timer: which of these is
+   * still on screen is a question about animation, and that belongs to the
+   * component drawing them, not to the store.
+   */
+  readonly emotes: readonly (EmotePayload & { seq: number; receivedAt: number })[];
   readonly log: readonly Announcement[];
   /** Chips already paid out this hand; see `potTotal` in ./patch. */
   readonly awarded: number;
@@ -109,6 +118,7 @@ const INITIAL: TableStoreState = {
   prompt: null,
   result: null,
   chat: [],
+  emotes: [],
   log: [],
   awarded: 0,
   patch: null,
@@ -120,6 +130,8 @@ const INITIAL: TableStoreState = {
 /** The hand log is a running commentary, not an archive; the tail is enough. */
 const LOG_LIMIT = 60;
 const CHAT_LIMIT = 80;
+/** Only the most recent handful can still be on screen; the rest are history. */
+const EMOTE_LIMIT = 24;
 
 let transport: Transport | null = null;
 let unsubscribe: (() => void) | null = null;
@@ -260,6 +272,25 @@ function handleEvent(event: string, payload: unknown, set: SetState, get: GetSta
     case SERVER_EVENTS.chatMessage:
       set({ chat: [...get().chat, payload as ChatMessagePayload].slice(-CHAT_LIMIT) });
       return;
+
+    case SERVER_EVENTS.tableEmote: {
+      // The sequence number is what makes two identical reactions from the same
+      // seat distinguishable — without it, React would treat the second as the
+      // first still being there and never animate it.
+      const store = get();
+      const seq = (store.emotes[store.emotes.length - 1]?.seq ?? 0) + 1;
+      // `receivedAt` is this machine's clock, not the server's `at`. How long a
+      // reaction has been on *this* screen is a local question, and comparing a
+      // server timestamp against `Date.now()` would be wrong by whatever the
+      // clock skew happens to be.
+      set({
+        emotes: [
+          ...store.emotes,
+          { ...(payload as EmotePayload), seq, receivedAt: Date.now() },
+        ].slice(-EMOTE_LIMIT),
+      });
+      return;
+    }
 
     case SERVER_EVENTS.sessionReplaced:
       set({

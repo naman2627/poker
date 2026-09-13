@@ -155,6 +155,119 @@ describe('a full four-player hand over sockets', () => {
     }
   });
 
+  /**
+   * THE SPECTATOR CASE (CLAUDE.md §1).
+   *
+   * Somebody joins the table and never sits. They are present for a whole hand,
+   * from the deal to the showdown, and every payload they receive is checked
+   * against one rule: the only cards they may ever see are the board, and the
+   * hands the showdown actually turned face up.
+   *
+   * The two things that would be easy to get wrong are both asserted directly —
+   * they are never dealt a private hand of their own, and a seat that mucked
+   * stays mucked for them exactly as it does for everybody else. A watcher is
+   * not a privileged reader.
+   */
+  it('shows a spectator the board and the shown hands, and not one card more', async () => {
+    const code = await seatEveryone(clients);
+
+    const { userId, token } = await server.createUser('Wren');
+    const watcher = await server.connect(token, userId, 'Wren');
+    await watcher.emit('table:join', { code });
+
+    await dealAndPlayToShowdown(clients);
+    // Let the showdown and the payout reach the rail as well as the table.
+    await watcher.recorder.waitFor((entry) => entry.event === 'hand:result');
+
+    // A watcher has no hand, and is never told they have one. This is the
+    // assertion that matters: `hand:dealt` is the only payload in the system
+    // that carries somebody's private cards, and it is addressed to one socket.
+    expect(watcher.recorder.latest('hand:dealt')).toBeNull();
+
+    const sync = watcher.recorder.latest<{ state: PublicTableState }>('state:sync');
+    const state = PublicTableStateSchema.parse(sync?.state);
+    expect(state.viewerSeatIndex).toBeNull();
+
+    // Prompts are broadcast rather than addressed — every client gets them so it
+    // can draw the clock over whichever seat is thinking, and the deadline is in
+    // the public state anyway. None of them carries a card, and none of them is
+    // this watcher's to answer: the server refuses an action from a seatless
+    // socket regardless of what it was sent.
+    const prompt = watcher.recorder.latest<{ handId: string; actionSeq: number }>('action:prompt');
+    const refused = await watcher.attempt('player:action', {
+      handId: prompt?.handId ?? state.handId,
+      actionSeq: prompt?.actionSeq ?? 0,
+      type: 'FOLD',
+    });
+    expect(refused.ok).toBe(false);
+
+    // What the showdown made public, from the table's own point of view.
+    const result = clients[0]?.recorder.latest<{
+      revealed: { cards: unknown }[];
+      mucked: unknown[];
+    }>('hand:result');
+    const shown = new Set((result?.revealed ?? []).flatMap((reveal) => [...cardsIn(reveal.cards)]));
+
+    // Replay the rail's whole stream. Every card in it has to be public by the
+    // time it arrives, on exactly the terms a seated player gets.
+    const publicCards = new Set<string>();
+    let sawACard = false;
+
+    for (const entry of watcher.recorder.events) {
+      for (const card of newlyPublicCards(entry)) publicCards.add(card);
+
+      for (const card of cardsIn(entry.payload)) {
+        sawACard = true;
+        expect(
+          publicCards.has(card),
+          `a spectator saw ${card} in ${entry.event}, which was not public yet`,
+        ).toBe(true);
+      }
+    }
+
+    // The board reached them, so the check above was not vacuous.
+    expect(sawACard).toBe(true);
+    expect(publicCards.size).toBeGreaterThanOrEqual(5);
+
+    /*
+     * THE MUCK, from the rail.
+     *
+     * A hand that reached the showdown and was not turned over stays its
+     * owner's — and a spectator is not a privileged reader. The cards are taken
+     * from what the server privately dealt each seated client, so this compares
+     * against ground truth rather than against anything the watcher was told.
+     */
+    const everySeenCard = new Set<string>();
+    for (const entry of watcher.recorder.events) {
+      for (const card of cardsIn(entry.payload)) everySeenCard.add(card);
+    }
+
+    const muckedSeats = new Set(
+      (result?.mucked ?? []).map((muck) => (muck as { seatIndex: number }).seatIndex),
+    );
+
+    for (const client of clients) {
+      const dealt = client.recorder.latest<{ seatIndex: number; yourCards: unknown }>('hand:dealt');
+      if (!dealt || !muckedSeats.has(dealt.seatIndex)) continue;
+
+      for (const card of cardsIn(dealt.yourCards)) {
+        expect(
+          everySeenCard.has(card),
+          `a spectator saw ${card}, which belonged to seat ${String(dealt.seatIndex)} and was mucked`,
+        ).toBe(false);
+      }
+    }
+
+    // Whatever the showdown did turn over, the rail did see — otherwise the
+    // check above would pass on a hand that showed nothing to anybody.
+    for (const card of shown) {
+      expect(everySeenCard.has(card), `a spectator missed ${card}, which was shown down`).toBe(
+        true,
+      );
+    }
+    expect(shown.size).toBeGreaterThanOrEqual(2);
+  });
+
   it('never puts the deck on the wire', async () => {
     await seatEveryone(clients);
     await dealAndPlayToShowdown(clients);
