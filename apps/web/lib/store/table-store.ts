@@ -52,6 +52,18 @@ export interface TableStoreState {
   readonly log: readonly Announcement[];
   /** Chips already paid out this hand; see `potTotal` in ./patch. */
   readonly awarded: number;
+  /**
+   * The events from the most recent patch, with a counter.
+   *
+   * Held so something outside the store can react to *what happened* rather
+   * than to what the state now is — the sounds, which need to know that a seat
+   * folded and not merely that it is folded. The counter is what makes two
+   * identical patches distinguishable; without it, a check followed by another
+   * check would look like nothing changed.
+   *
+   * Nothing renders from this. It is a notification, not state.
+   */
+  readonly patch: { readonly seq: number; readonly events: readonly TableEvent[] } | null;
   readonly pending: boolean;
   readonly error: ApiError | null;
   readonly notice: string | null;
@@ -99,6 +111,7 @@ const INITIAL: TableStoreState = {
   chat: [],
   log: [],
   awarded: 0,
+  patch: null,
   pending: false,
   error: null,
   notice: null,
@@ -293,11 +306,13 @@ function onPatch(payload: StatePatchPayload, set: SetState, get: GetState): void
 
   // The log and the live region are driven by every patch, even one whose state
   // has already been applied — what happened is worth saying exactly once, and
-  // the events are the only place it is said.
+  // the events are the only place it is said. The sounds ride along with them,
+  // for the same reason and on the same terms.
   const log = appendLog(store.log, events, store.state);
+  const patch = { seq: (store.patch?.seq ?? 0) + 1, events };
 
   if (store.state === null) {
-    set({ log });
+    set({ log, patch });
     void resync(store, 0);
     return;
   }
@@ -307,14 +322,14 @@ function onPatch(payload: StatePatchPayload, set: SetState, get: GetState): void
   // would be double-counting, so at an equal version the events are commentary
   // only.
   if (payload.version <= store.version) {
-    set({ log });
+    set({ log, patch });
     return;
   }
 
   if (payload.version > store.version + 1) {
     // A frame went missing. Rather than draw a table with a hole in it, ask for
     // the whole thing.
-    set({ log });
+    set({ log, patch });
     void resync(store, store.version);
     return;
   }
@@ -329,7 +344,7 @@ function onPatch(payload: StatePatchPayload, set: SetState, get: GetState): void
       ? applied.state
       : { ...applied.state, leaderboard: [...payload.leaderboard] };
 
-  set({ state, awarded: applied.awarded, version: payload.version, log });
+  set({ state, awarded: applied.awarded, version: payload.version, log, patch });
 
   // Pot *layers* are the server's arithmetic and only ride along with a whole
   // state. Streets are exactly when they change, so a street change is where

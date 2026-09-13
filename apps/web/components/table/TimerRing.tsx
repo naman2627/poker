@@ -15,6 +15,32 @@ import { cx } from '../../lib/cx';
  */
 const TICK_MS = 100;
 
+/**
+ * How close to the buzzer the ring starts worrying.
+ *
+ * Absolute seconds, not a fraction of the clock. A quarter of a thirty-second
+ * timer is seven and a half seconds and a quarter of a fifteen-second timer is
+ * under four — the same colour would mean two different amounts of time to act,
+ * which is exactly the thing a player is reading it for.
+ */
+export const AMBER_MS = 10_000;
+export const RED_MS = 5_000;
+
+export type Urgency = 'calm' | 'amber' | 'red';
+
+/** Pure, so the thresholds can be asserted without rendering a clock. */
+export function urgencyOf(remainingMs: number): Urgency {
+  if (remainingMs <= RED_MS) return 'red';
+  if (remainingMs <= AMBER_MS) return 'amber';
+  return 'calm';
+}
+
+const STROKE: Readonly<Record<Urgency, string>> = {
+  calm: 'var(--color-accent)',
+  amber: 'var(--color-warn)',
+  red: 'var(--color-danger)',
+};
+
 export interface TimerRingProps {
   readonly deadlineTs: number;
   readonly totalSec: number;
@@ -29,7 +55,7 @@ export function TimerRing({ deadlineTs, totalSec, size = 56, className }: TimerR
 
   const radius = size / 2 - 3;
   const circumference = 2 * Math.PI * radius;
-  const urgent = fraction <= 0.25;
+  const urgency = urgencyOf(remaining);
 
   return (
     <svg
@@ -53,14 +79,15 @@ export function TimerRing({ deadlineTs, totalSec, size = 56, className }: TimerR
         cy={size / 2}
         r={radius}
         fill="none"
-        stroke={urgent ? 'var(--color-danger)' : 'var(--color-accent)'}
+        stroke={STROKE[urgency]}
         strokeWidth={3}
         strokeLinecap="round"
         strokeDasharray={circumference}
         strokeDashoffset={circumference * (1 - fraction)}
         // Start the arc at twelve o'clock and drain clockwise.
         transform={`rotate(-90 ${String(size / 2)} ${String(size / 2)})`}
-        className={urgent ? 'animate-pulse-ring' : undefined}
+        // Only the last five seconds pulse. Amber is a warning; red is a hurry.
+        className={urgency === 'red' ? 'animate-pulse-ring' : undefined}
       />
     </svg>
   );

@@ -8,12 +8,15 @@ import { useTableConnection } from '../../lib/net/use-table-connection';
 import { useFixtureControls } from '../../lib/use-fixture';
 import { potTotal } from '../../lib/store/patch';
 import { isLive, useTableStore } from '../../lib/store/table-store';
+import { useTableSounds } from '../../lib/sound/use-table-sounds';
+import { useTurnTitleFlash } from '../../lib/turn-title';
 import { ActionBar } from './ActionBar';
 import { ConnectionBadge } from './ConnectionBadge';
 import { FixtureBar } from './FixtureBar';
 import { HandLog } from './HandLog';
 import { HandResultPanel } from './HandResultPanel';
 import { LiveLeaderboard } from './LiveLeaderboard';
+import { SoundToggle } from './SoundToggle';
 import { SeatPicker } from './SeatPicker';
 import { TableControls } from './TableControls';
 import { TableFelt } from './TableFelt';
@@ -57,6 +60,11 @@ export function TableScreen({ code }: { code: string }) {
   const seat = state !== null && viewerSeat !== null ? (state.seats[viewerSeat] ?? null) : null;
   const myTurn = store.prompt !== null && store.prompt.seatIndex === viewerSeat;
 
+  // The table, out loud — and the tab title, for whoever is not looking at it.
+  // Both are no-ops until the player turns them on; see lib/sound/prefs.ts.
+  useTableSounds({ patch: store.patch, prompt: store.prompt, viewerSeatIndex: viewerSeat });
+  useTurnTitleFlash(myTurn);
+
   const send = (event: string, payload?: unknown): void => {
     void store.send(event, payload);
   };
@@ -98,7 +106,8 @@ export function TableScreen({ code }: { code: string }) {
             Leaderboard
           </Button>
 
-          <span className="ml-auto">
+          <span className="ml-auto flex items-center gap-2">
+            <SoundToggle />
             <ConnectionBadge
               status={store.status}
               attempt={store.reconnectAttempt}
@@ -200,7 +209,14 @@ export function TableScreen({ code }: { code: string }) {
                 bigBlind={state.bigBlind}
               />
             ) : null}
-            <HandLog log={store.log} chat={store.chat} />
+            <HandLog
+              log={store.log}
+              chat={store.chat}
+              canChat={live}
+              onSend={(text) => {
+                send(CLIENT_EVENTS.chatSend, { text });
+              }}
+            />
           </aside>
         </div>
       </div>

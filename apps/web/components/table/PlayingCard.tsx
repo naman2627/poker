@@ -1,5 +1,8 @@
+'use client';
+
 import type { Card } from '@poker/shared';
-import { cardLabel, isRedSuit, rankLabel, suitGlyph } from '../../lib/cards';
+import { cardLabel, rankLabel, suitColourClass, suitGlyph } from '../../lib/cards';
+import { usePrefs } from '../../lib/prefs/store';
 import { cx } from '../../lib/cx';
 
 /**
@@ -12,6 +15,10 @@ import { cx } from '../../lib/cx';
  * Red is `--color-card-red`, a deep slightly-orange red. Pure #FF0000 on a green
  * felt vibrates at the edges and turns to mush at the size a corner index is
  * actually drawn.
+ *
+ * Which colour a suit gets is the player's own setting: two colours like a
+ * paper deck, or one per suit. The card asks `suitColourClass` rather than
+ * deciding, so both schemes stay in one place — see `lib/cards.ts`.
  */
 export type CardSize = 'sm' | 'md' | 'lg';
 
@@ -38,7 +45,8 @@ export function PlayingCard({
   className,
 }: PlayingCardProps) {
   const metrics = SIZES[size];
-  const red = isRedSuit(card.suit);
+  const fourColour = usePrefs((store) => store.deck) === 'four-colour';
+  const ink = suitColourClass(card.suit, fourColour);
   const rank = rankLabel(card.rank);
   const suit = suitGlyph(card.suit);
 
@@ -58,19 +66,19 @@ export function PlayingCard({
         className,
       )}
     >
-      <Corner rank={rank} suit={suit} red={red} size={metrics.index} />
+      <Corner rank={rank} suit={suit} ink={ink} size={metrics.index} />
       <span
         aria-hidden
         className={cx(
           'absolute inset-0 flex items-center justify-center leading-none',
           metrics.pip,
-          red ? 'text-card-red' : 'text-card-ink',
+          ink,
           'opacity-25',
         )}
       >
         {suit}
       </span>
-      <Corner rank={rank} suit={suit} red={red} size={metrics.index} flipped />
+      <Corner rank={rank} suit={suit} ink={ink} size={metrics.index} flipped />
     </div>
   );
 }
@@ -78,13 +86,13 @@ export function PlayingCard({
 function Corner({
   rank,
   suit,
-  red,
+  ink,
   size,
   flipped = false,
 }: {
   rank: string;
   suit: string;
-  red: boolean;
+  ink: string;
   size: string;
   flipped?: boolean;
 }) {
@@ -94,7 +102,7 @@ function Corner({
       className={cx(
         'absolute flex flex-col items-center leading-[0.95] font-semibold',
         size,
-        red ? 'text-card-red' : 'text-card-ink',
+        ink,
         flipped ? 'right-0.5 bottom-0.5 rotate-180' : 'top-0.5 left-0.5',
       )}
     >

@@ -30,6 +30,16 @@
   --color-accent: oklch(0.78 0.16 155);
   /* Card red is tuned for a card face; error text needs to carry on dark felt. */
   --color-danger: oklch(0.74 0.17 25);
+  /* The step between calm and out of time. Amber reads as "soon" against both. */
+  --color-warn: oklch(0.83 0.15 82);
+
+  /*
+   * The other two suits, for players who use a four-colour deck. Tuned to sit
+   * at the same weight as `card-red` on a card face — a blue that reads as ink
+   * and a green that is not the felt.
+   */
+  --color-suit-diamond: oklch(0.48 0.17 255);
+  --color-suit-club: oklch(0.46 0.13 150);
 
   /* One place to change how long a card takes to land. */
   --ease-deal: cubic-bezier(0.2, 0.9, 0.25, 1);

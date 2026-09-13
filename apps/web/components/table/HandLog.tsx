@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import type { ChatMessagePayload } from '@poker/shared';
 import type { Announcement } from '../../lib/announce';
+import { ChatComposer } from './ChatComposer';
 
 /**
  * The hand log, and the thing that reads it aloud.
@@ -17,9 +18,14 @@ import type { Announcement } from '../../lib/announce';
 export function HandLog({
   log,
   chat,
+  canChat,
+  onSend,
 }: {
   log: readonly Announcement[];
   chat: readonly ChatMessagePayload[];
+  /** False while the link is down — a message sent into a dead socket is lost. */
+  canChat: boolean;
+  onSend(text: string): void;
 }) {
   const scroller = useRef<HTMLOListElement>(null);
   const latest = log[log.length - 1];
@@ -69,6 +75,8 @@ export function HandLog({
           ))}
         </ul>
       ) : null}
+
+      <ChatComposer disabled={!canChat} onSend={onSend} />
     </section>
   );
 }

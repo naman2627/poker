@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ActionPromptPayload, PlayerActionPayload, PlayerActionType } from '@poker/shared';
 import { Button } from '../ui/Button';
 import { RaiseControl } from './RaiseControl';
-import { raiseBounds, snapRaise } from '../../lib/raise';
+import { potFractionRaise, raiseBounds, snapRaise } from '../../lib/raise';
 import { chips } from '../../lib/format';
 import { cx } from '../../lib/cx';
 
@@ -18,6 +18,9 @@ import { cx } from '../../lib/cx';
  * what happens next.
  *
  * Keyboard: F folds, C checks or calls, R opens the raise panel, Enter confirms.
+ * H, P and A open it with half the pot, the pot, or everything already dialled
+ * in — they *select* an amount rather than sending it, so the most expensive
+ * key on the board still needs a deliberate second press.
  * The shortcuts are ignored while a text field has focus, so typing in chat
  * cannot fold a hand.
  */
@@ -72,6 +75,28 @@ export function ActionBar({
     send(legal.canBet && !legal.canRaise ? 'BET' : 'RAISE', snapRaise(amount, bounds));
   }, [amount, bounds, legal.canBet, legal.canRaise, send]);
 
+  /**
+   * Open the raise panel with an amount already chosen.
+   *
+   * Deliberately stops short of sending it. A single keystroke that commits a
+   * whole stack is a keystroke somebody will hit by accident exactly once, and
+   * the hand it costs them is not recoverable — so H, P and A load the number
+   * and Enter is what spends it.
+   */
+  const selectAmount = useCallback(
+    (target: number) => {
+      setRaising(true);
+      setAmount(snapRaise(target, bounds));
+    },
+    [bounds],
+  );
+
+  const potFraction = useCallback(
+    (fraction: number): number =>
+      potFractionRaise(fraction, { potTotal, callAmount: legal.callAmount, currentBet }, bounds),
+    [bounds, currentBet, legal.callAmount, potTotal],
+  );
+
   useShortcuts({
     disabled: pending,
     onFold: legal.canFold ? () => send('FOLD') : null,
@@ -81,6 +106,9 @@ export function ActionBar({
           setRaising(true);
         }
       : null,
+    onHalfPot: canOpenRaise ? () => selectAmount(potFraction(0.5)) : null,
+    onPot: canOpenRaise ? () => selectAmount(potFraction(1)) : null,
+    onAllIn: canOpenRaise ? () => selectAmount(bounds.max) : null,
     onConfirm: raising && canOpenRaise ? confirmRaise : null,
   });
 
@@ -195,6 +223,9 @@ function useShortcuts(handlers: {
   onFold: (() => void) | null;
   onCheckCall: (() => void) | null;
   onRaise: (() => void) | null;
+  onHalfPot: (() => void) | null;
+  onPot: (() => void) | null;
+  onAllIn: (() => void) | null;
   onConfirm: (() => void) | null;
 }): void {
   const latest = useRef(handlers);
@@ -221,6 +252,12 @@ function useShortcuts(handlers: {
           return run(current.onCheckCall);
         case 'r':
           return run(current.onRaise);
+        case 'h':
+          return run(current.onHalfPot);
+        case 'p':
+          return run(current.onPot);
+        case 'a':
+          return run(current.onAllIn);
         case 'enter':
           return run(current.onConfirm);
         default:

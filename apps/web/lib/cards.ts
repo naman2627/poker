@@ -67,6 +67,38 @@ export function isRedSuit(suit: Suit): boolean {
   return suit === 'h' || suit === 'd';
 }
 
+/**
+ * What colour a suit is printed in.
+ *
+ * A real deck has two colours, and telling clubs from spades means reading the
+ * pip. A four-colour deck gives each suit its own, which is the single biggest
+ * thing you can do to stop somebody misreading a flush — and is why most online
+ * rooms offer it. It is a preference rather than a default because players who
+ * learned on paper find four colours actively wrong.
+ *
+ * These are class names rather than values so the card keeps taking its colours
+ * from the theme tokens in `globals.css`.
+ */
+const CLASSIC: Readonly<Record<Suit, string>> = {
+  s: 'text-card-ink',
+  c: 'text-card-ink',
+  h: 'text-card-red',
+  d: 'text-card-red',
+};
+
+const FOUR_COLOUR: Readonly<Record<Suit, string>> = {
+  s: 'text-card-ink',
+  h: 'text-card-red',
+  // Diamonds blue and clubs green: the conventional four-colour scheme, and the
+  // two hues furthest from the red they have to be told apart from.
+  d: 'text-suit-diamond',
+  c: 'text-suit-club',
+};
+
+export function suitColourClass(suit: Suit, fourColour: boolean): string {
+  return (fourColour ? FOUR_COLOUR : CLASSIC)[suit];
+}
+
 /** What a screen reader says instead of "A♠". */
 export function cardLabel(card: Card): string {
   return `${RANK_NAMES[card.rank] ?? String(card.rank)} of ${SUIT_NAMES[card.suit]}`;

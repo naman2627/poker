@@ -63,13 +63,22 @@ export default function LobbyPage() {
             <p className="text-xs text-neutral-500">Play money. No cash-out, ever.</p>
           </div>
 
-          <Button
-            variant="quiet"
-            className="ml-auto px-0 text-xs"
-            onClick={() => router.push('/leaderboard')}
-          >
-            Leaderboard
-          </Button>
+          <span className="ml-auto flex items-center gap-3">
+            <Button
+              variant="quiet"
+              className="px-0 text-xs"
+              onClick={() => router.push('/leaderboard')}
+            >
+              Leaderboard
+            </Button>
+            <Button
+              variant="quiet"
+              className="px-0 text-xs"
+              onClick={() => router.push('/settings')}
+            >
+              Settings
+            </Button>
+          </span>
         </header>
 
         <JoinCard onOpen={(code) => router.push(`/table/${code}`)} />
