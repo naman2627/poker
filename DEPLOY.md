@@ -7,7 +7,7 @@ accounts, no Docker, no server to patch.
 | ------------------ | ---------------- | ------------------- |
 | Web client         | Vercel           | free                |
 | Game server        | Render (Free)    | free — kept awake   |
-| Postgres           | Render           | free — 90-day limit |
+| Postgres           | Render           | free — 30-day limit |
 | Redis              | Render Key Value | free                |
 | SMS one-time codes | Twilio or MSG91  | pay per message     |
 
@@ -54,9 +54,10 @@ DATABASE_URL='postgresql://...external...' pnpm --filter @poker/server db:migrat
 Repeat it any time something under `apps/server/drizzle` changes; Render does
 not run it for you.
 
-**Render's free Postgres expires 90 days after creation.** Before then, either
-move to a paid instance or `pg_dump` it somewhere — accounts, hand history and
-both leaderboards all live in it.
+**Render's free Postgres is deleted 30 days after creation.** The exact date is
+on the database's Info page in the dashboard. Before then, either move to a paid
+instance or `pg_dump` it somewhere — accounts, hand history and both
+leaderboards all live in it.
 
 ### Staying awake on the free plan
 
@@ -183,8 +184,9 @@ the first loses every account on restart, the second makes every shuffle
 predictable. If Render's deploy fails at startup, read the log; it names the
 variable.
 
-**Render's free Postgres expires 90 days after it is created**, and it is not a
-warning — the database goes. Back it up and move to a paid instance before then:
+**Render's free Postgres is deleted 30 days after it is created**, and that is
+not a warning — the database goes, and the accounts with it. The date is on the
+database's Info page. Back it up and move to a paid instance before then:
 
 ```bash
 pg_dump 'postgresql://...external...' | gzip > poker-backup.sql.gz

@@ -101,7 +101,8 @@ databases:
     databaseName: poker
     user: poker
     region: oregon
-    # Free Postgres on Render expires 90 days after it is created. Back it up
-    # (pg_dump) and move to a paid instance before then, or the accounts, the
-    # hand history and both leaderboards go with it.
+    # Free Postgres on Render is DELETED 30 days after it is created — the
+    # dashboard shows the date on the database's Info page. Back it up (pg_dump)
+    # and move to a paid instance before then, or the accounts, the hand history
+    # and both leaderboards go with it.
     plan: free
