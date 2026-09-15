@@ -119,6 +119,13 @@ export function keepAliveUrlFrom(env: {
   KEEPALIVE_URL?: string | undefined;
   RENDER_EXTERNAL_URL?: string | undefined;
 }): string | null {
-  if (env.KEEPALIVE_URL === 'off') return null;
-  return env.KEEPALIVE_URL ?? env.RENDER_EXTERNAL_URL ?? null;
+  // Blank counts as unset, not as a URL. A dashboard that offers a field for
+  // this one and is left alone hands over an empty string rather than nothing,
+  // and `??` would take it — leaving the pings aimed at "".
+  const explicit = env.KEEPALIVE_URL?.trim();
+  if (explicit === 'off') return null;
+  if (explicit) return explicit;
+
+  const platform = env.RENDER_EXTERNAL_URL?.trim();
+  return platform ? platform : null;
 }

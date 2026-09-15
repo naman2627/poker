@@ -170,6 +170,21 @@ describe('keepAliveUrlFrom', () => {
     expect(keepAliveUrlFrom({})).toBeNull();
   });
 
+  it('treats a blank KEEPALIVE_URL as unset and falls back', () => {
+    // Render writes an empty string for a blueprint field left alone, which is
+    // exactly what a `??` chain would mistake for a configured value.
+    expect(
+      keepAliveUrlFrom({ KEEPALIVE_URL: '', RENDER_EXTERNAL_URL: 'https://x.onrender.com' }),
+    ).toBe('https://x.onrender.com');
+    expect(
+      keepAliveUrlFrom({ KEEPALIVE_URL: '   ', RENDER_EXTERNAL_URL: 'https://x.onrender.com' }),
+    ).toBe('https://x.onrender.com');
+  });
+
+  it('is off when both are blank rather than pointing pings at nothing', () => {
+    expect(keepAliveUrlFrom({ KEEPALIVE_URL: '', RENDER_EXTERNAL_URL: '' })).toBeNull();
+  });
+
   it('is off on request, for a paid instance that does not sleep', () => {
     expect(
       keepAliveUrlFrom({ KEEPALIVE_URL: 'off', RENDER_EXTERNAL_URL: 'https://x.onrender.com' }),
