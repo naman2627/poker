@@ -23,11 +23,24 @@ services:
     # a second, different game behind the same table code.
     numInstances: 1
     healthCheckPath: /health
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter "@poker/server..." build
+    # `corepack enable` on its own tries to symlink into /usr/bin, which is
+    # read-only on Render's builder (EROFS). Pointing it at a writable directory
+    # and putting that on PATH gets the exact pnpm named in packageManager.
+    buildCommand: >-
+      mkdir -p "$HOME/.bin" &&
+      corepack enable --install-directory "$HOME/.bin" &&
+      export PATH="$HOME/.bin:$PATH" &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter "@poker/server..." build
     startCommand: node apps/server/dist/index.js
     envVars:
       - key: NODE_ENV
         value: production
+
+      # Corepack asks before downloading a package manager, and a build has
+      # nobody to ask.
+      - key: COREPACK_ENABLE_DOWNLOAD_PROMPT
+        value: '0'
       - key: AUTH_STORE
         value: postgres
 
