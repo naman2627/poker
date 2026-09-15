@@ -9,6 +9,7 @@ import {
   createMemoryUserRepository,
 } from './memory-adapters';
 import { OtpService } from './otp-service';
+import { cookiePolicyFor, type CookiePolicy } from './policy';
 import { systemClock, type Clock, type UserRepository } from './ports';
 import { createRefreshTokenRepository, createUserRepository } from './repositories';
 import { createRedisStore } from './redis-store';
@@ -25,7 +26,7 @@ export interface AuthDependencies {
   readonly tokens: TokenService;
   readonly users: UserRepository;
   readonly clock: Clock;
-  readonly cookieSecure: boolean;
+  readonly cookie: CookiePolicy;
   /** Releases the database and Redis connections, if this set owns any. */
   close(): Promise<void>;
 }
@@ -45,7 +46,7 @@ export async function createAuthDependencies(config: AppConfig): Promise<AuthDep
   return {
     users,
     clock,
-    cookieSecure: authConfig.NODE_ENV !== 'development',
+    cookie: cookiePolicyFor(authConfig.NODE_ENV),
     otp: new OtpService({ kv: createRedisStore(redis), users, sms, clock }),
     tokens: new TokenService({
       users,
@@ -87,7 +88,8 @@ export function createMemoryAuthDependencies(config: AppConfig): AuthDependencie
   return {
     users,
     clock,
-    cookieSecure: false,
+    // Plain http on localhost, so Secure is impossible and Lax is enough.
+    cookie: { secure: false, sameSite: 'lax' },
     otp: new OtpService({
       kv: createMemoryKeyValueStore(clock),
       users,

@@ -5,6 +5,7 @@ import { createAuthDependencies, createMemoryAuthDependencies } from './auth/dep
 import { assertNotProduction, loadConfig, loadDotEnv } from './config';
 import { createDatabase } from './db/client';
 import { createMemoryHistorySink, type MemoryHistorySink } from './history/memory-sink';
+import { keepAliveUrlFrom, startKeepAlive } from './keepalive';
 import { createPostgresHistorySink } from './history/postgres-sink';
 import { HistoryRecorder } from './history/recorder';
 import type { HistorySink } from './history/sink';
@@ -146,6 +147,29 @@ const io = attachRealtime(app, { config, auth, registry });
 
 await app.listen({ port: config.PORT, host: '0.0.0.0' });
 
+/**
+ * Keep a free instance from being put to sleep under a table.
+ *
+ * Started after listen, not before: the first thing the timer will do is ask
+ * this process for /health, and there is no sense arranging that before there
+ * is a socket to answer on. Off entirely unless a public URL is configured.
+ */
+const keepAliveUrl = keepAliveUrlFrom(process.env);
+const stopKeepAlive =
+  keepAliveUrl === null
+    ? () => {}
+    : startKeepAlive({
+        url: keepAliveUrl,
+        logger,
+        ...(config.KEEPALIVE_INTERVAL_MS === undefined
+          ? {}
+          : { intervalMs: config.KEEPALIVE_INTERVAL_MS }),
+      });
+
+if (keepAliveUrl !== null) {
+  console.info(`keep-alive: pinging ${keepAliveUrl}/health so this instance is not put to sleep.`);
+}
+
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
     app.log.info({ signal }, 'shutting down');
@@ -155,6 +179,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
       .then(() => {
         registry.closeAll();
         stopRebuilds();
+        stopKeepAlive();
       })
       // Bounded: a database that is down must not stop the server stopping.
       .then(() => history.whenFlushed(5_000))

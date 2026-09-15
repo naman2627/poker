@@ -233,7 +233,7 @@ export function createTestAuth(): TestAuth {
     sms,
     users,
     refreshTokens,
-    cookieSecure: true,
+    cookie: { secure: true, sameSite: 'none' as const },
     otp: new OtpService({ kv, users, sms, clock }),
     tokens: new TokenService({
       users,

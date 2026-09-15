@@ -1,0 +1,94 @@
+# Render Blueprint for the game server.
+#
+# Render -> New -> Blueprint -> point it at this repo. It reads this file and
+# creates both services below. The web client is not here: that is on Vercel.
+#
+# It creates everything the server needs: the service, a Postgres, and a
+# Redis-compatible key-value store. The only value it cannot work out for itself
+# is WEB_ORIGIN — the Vercel URL, which does not exist until Vercel has built
+# the site. The SMS credentials are the same: set them in the dashboard, not
+# here, so no secret ever lands in git.
+
+services:
+  - type: web
+    name: poker-server
+    runtime: node
+    region: oregon
+    # Free works because the server pings its own /health every 14 minutes and
+    # never lets the 15-minute idle timer run out — see src/keepalive.ts. Move to
+    # `starter` if you would rather not rely on that; the keep-alive turns itself
+    # off when you do (set KEEPALIVE_URL=off).
+    plan: free
+    # Exactly one. Tables live in a Map in the process, so a second instance is
+    # a second, different game behind the same table code.
+    numInstances: 1
+    healthCheckPath: /health
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter "@poker/server..." build
+    startCommand: node apps/server/dist/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: AUTH_STORE
+        value: postgres
+
+      # Render's own Postgres, created below. This is the internal connection
+      # string — reachable from this service, not from your laptop. Running the
+      # migration needs the External URL from the dashboard; see DEPLOY.md.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: poker-db
+          property: connectionString
+
+      # Render's own Redis-compatible store, wired up below.
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: poker-redis
+          property: connectionString
+
+      # Render generates these once and keeps them. They must differ, and the
+      # server refuses to boot if they are shorter than 32 bytes.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+
+      # https://your-app.vercel.app — no trailing slash. This is the CORS
+      # allow-list and the Socket.IO origin check, so a typo here means the
+      # browser cannot talk to this server at all.
+      - key: WEB_ORIGIN
+        sync: false
+
+      # twilio or msg91. Leave as console and only you can sign in.
+      - key: SMS_PROVIDER
+        sync: false
+      - key: SMS_API_KEY
+        sync: false
+      - key: SMS_SENDER_ID
+        sync: false
+
+      # Keep-alive. RENDER_EXTERNAL_URL is set by Render itself and is what the
+      # pings are aimed at, so there is nothing to fill in here. On a paid plan
+      # there is no idle timer to beat: set KEEPALIVE_URL to `off`.
+      - key: KEEPALIVE_URL
+        sync: false
+
+  - type: keyvalue
+    name: poker-redis
+    region: oregon
+    plan: free
+    # Nothing outside the Render network needs to reach it.
+    ipAllowList: []
+    # One-time codes and login rate limits only. Everything here is either
+    # short-lived or rebuilt from Postgres hourly, so eviction costs nothing.
+    maxmemoryPolicy: noeviction
+
+databases:
+  - name: poker-db
+    databaseName: poker
+    user: poker
+    region: oregon
+    # Free Postgres on Render expires 90 days after it is created. Back it up
+    # (pg_dump) and move to a paid instance before then, or the accounts, the
+    # hand history and both leaderboards go with it.
+    plan: free

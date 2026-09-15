@@ -11,7 +11,7 @@ import {
 } from '@poker/shared';
 import { AuthError } from './errors';
 import type { OtpService } from './otp-service';
-import { REFRESH_COOKIE_NAME, REFRESH_COOKIE_PATH } from './policy';
+import { REFRESH_COOKIE_NAME, REFRESH_COOKIE_PATH, type CookiePolicy } from './policy';
 import type { Clock, UserRecord, UserRepository } from './ports';
 import type { IssuedSession, TokenService } from './token-service';
 
@@ -20,8 +20,8 @@ export interface AuthRouteDeps {
   readonly tokens: TokenService;
   readonly users: UserRepository;
   readonly clock: Clock;
-  /** Off only for plain-http local development; on everywhere else. */
-  readonly cookieSecure: boolean;
+  /** Secure + SameSite for the refresh cookie. See `cookiePolicyFor`. */
+  readonly cookie: CookiePolicy;
 }
 
 /**
@@ -41,7 +41,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDeps): v
     const body = parse(OtpVerifyBodySchema, request.body);
     const { user, isNewUser } = await deps.otp.verify(body.requestId, body.code);
     const session = await deps.tokens.startSession(user);
-    setRefreshCookie(reply, session, deps.cookieSecure);
+    setRefreshCookie(reply, session, deps.cookie);
 
     return {
       accessToken: session.accessToken,
@@ -80,11 +80,11 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDeps): v
     } catch (error: unknown) {
       // A refused refresh is the end of that cookie's usefulness, whatever the
       // reason, so it does not sit in the browser waiting to fail again.
-      clearRefreshCookie(reply, deps.cookieSecure);
+      clearRefreshCookie(reply, deps.cookie);
       throw error;
     }
 
-    setRefreshCookie(reply, session, deps.cookieSecure);
+    setRefreshCookie(reply, session, deps.cookie);
     return {
       accessToken: session.accessToken,
       expiresInSec: session.expiresInSec,
@@ -96,7 +96,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDeps): v
   app.post('/auth/logout', async (request, reply): Promise<{ ok: true }> => {
     const presented = request.cookies[REFRESH_COOKIE_NAME];
     if (presented) await deps.tokens.revokeSession(presented);
-    clearRefreshCookie(reply, deps.cookieSecure);
+    clearRefreshCookie(reply, deps.cookie);
     return { ok: true };
   });
 
@@ -130,21 +130,21 @@ async function authenticate(request: FastifyRequest, deps: AuthRouteDeps): Promi
   return deps.tokens.authenticate(header.slice('Bearer '.length).trim());
 }
 
-function setRefreshCookie(reply: FastifyReply, session: IssuedSession, secure: boolean): void {
+function setRefreshCookie(reply: FastifyReply, session: IssuedSession, cookie: CookiePolicy): void {
   reply.setCookie(REFRESH_COOKIE_NAME, session.refreshToken, {
     httpOnly: true,
-    secure,
-    sameSite: 'lax',
+    secure: cookie.secure,
+    sameSite: cookie.sameSite,
     path: REFRESH_COOKIE_PATH,
     expires: session.refreshExpiresAt,
   });
 }
 
-function clearRefreshCookie(reply: FastifyReply, secure: boolean): void {
+function clearRefreshCookie(reply: FastifyReply, cookie: CookiePolicy): void {
   reply.clearCookie(REFRESH_COOKIE_NAME, {
     httpOnly: true,
-    secure,
-    sameSite: 'lax',
+    secure: cookie.secure,
+    sameSite: cookie.sameSite,
     path: REFRESH_COOKIE_PATH,
   });
 }

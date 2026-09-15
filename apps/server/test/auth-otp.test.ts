@@ -153,10 +153,12 @@ describe('POST /auth/otp/verify', () => {
     });
 
     expect(refreshCookieOf(response)).toBeTruthy();
+    // SameSite=None because the site and the server are on different domains
+    // in every deployment of this — see `cookiePolicyFor`.
     expect(refreshCookieAttributes(response)).toMatchObject({
       httpOnly: true,
       secure: true,
-      sameSite: 'Lax',
+      sameSite: 'None',
       path: '/auth',
     });
   });

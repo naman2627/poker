@@ -47,6 +47,18 @@ const ConfigSchema = z.object({
    * deck is not a debugging aid at a table people are playing at.
    */
   TABLE_RNG_SEED: z.string().min(1).optional(),
+
+  /**
+   * Keeping a sleeping host awake. See `src/keepalive.ts`.
+   *
+   * `RENDER_EXTERNAL_URL` is set by Render itself, so on Render this configures
+   * itself. `KEEPALIVE_URL` overrides it anywhere else, and the literal `off`
+   * disables the pings on a host that does not sleep.
+   */
+  KEEPALIVE_URL: z.union([z.literal('off'), z.url({ protocol: /^https?$/ })]).optional(),
+  RENDER_EXTERNAL_URL: z.url({ protocol: /^https?$/ }).optional(),
+  /** Overrides the fourteen-minute default. Unset in every normal deployment. */
+  KEEPALIVE_INTERVAL_MS: z.coerce.number().int().min(60_000).max(3_600_000).optional(),
 });
 
 export type AppConfig = z.infer<typeof ConfigSchema>;
