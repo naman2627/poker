@@ -1,7 +1,7 @@
 # Render Blueprint for the game server.
 #
 # Render -> New -> Blueprint -> point it at this repo. It reads this file and
-# creates both services below. The web client is not here: that is on Vercel.
+# creates all three things below. The web client is not here: that is on Vercel.
 #
 # It creates everything the server needs: the service, a Postgres, and a
 # Redis-compatible key-value store. The only value it cannot work out for itself
